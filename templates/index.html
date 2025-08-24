@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados para el fondo y la fuente */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Fondo oscuro */
+        }
+        .selected-video-btn {
+            background-color: #3b82f6; /* Azul de Tailwind */
+            border-color: #60a5fa;
+            transform: scale(1.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 2px solid;
+        }
+        .selected-audio-btn {
+            background-color: #eab308; /* Amarillo de Tailwind */
+            border-color: #fde047;
+            transform: scale(1.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1-px rgba(0, 0, 0, 0.06);
+            border: 2px solid;
+        }
+        .download-btn {
+            background-color: #10b981; /* Verde esmeralda de Tailwind */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .download-btn:disabled {
+            background-color: #4b5563; /* Gris */
+            cursor: not-allowed;
+        }
+        .download-btn:hover:enabled {
+            background-color: #059669; /* Verde esmeralda más oscuro */
+        }
+        .bg-gray-750 {
+            background-color: #2D3748;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div class="container mx-auto max-w-2xl bg-gray-800 rounded-2xl p-8 shadow-2xl">
+        <h1 class="text-3xl font-bold text-center mb-6">Descargador de YouTube</h1>
+        <p class="text-sm text-center text-gray-400 mb-6">
+            Pega el URL de un video de YouTube y selecciona las opciones de descarga.
+        </p>
+
+        <div class="flex flex-col md:flex-row gap-4 mb-6">
+            <input type="text" id="videoUrl" placeholder="Introduce el URL del video aquí..."
+                   class="flex-grow p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="getOptionsBtn"
+                    class="bg-blue-600 text-white font-semibold p-3 rounded-lg hover:bg-blue-700 transition-colors">
+                Obtener Opciones
+            </button>
+        </div>
+
+        <div id="messageArea" class="text-center p-3 rounded-lg mb-6 transition-opacity duration-300 opacity-0">
+            <p id="messageText" class="font-medium"></p>
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center mb-6">
+            <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-500 rounded-full" role="status">
+            </div>
+            <p class="mt-2 text-gray-400">Cargando opciones...</p>
+        </div>
+        
+        <div id="resultsArea" class="hidden">
+            <h2 id="videoTitle" class="text-2xl font-semibold mb-4 text-center"></h2>
+            
+            <div id="adaptiveVideoSection" class="mb-6">
+                <h3 class="text-xl font-semibold mb-2">Calidad de Video (Solo Video)</h3>
+                <div id="adaptiveVideoOptionsDiv" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    </div>
+            </div>
+
+            <div id="audioOnlySection" class="mb-6">
+                <h3 class="text-xl font-semibold mb-2">Pistas de Audio (Solo Audio)</h3>
+                <div id="audioOnlyOptionsDiv" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    </div>
+            </div>
+
+            <div id="progressiveSection" class="mb-6">
+                <h3 class="text-xl font-semibold mb-2">Videos Progresivos (Video + Audio)</h3>
+                <div id="progressiveOptionsDiv" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    </div>
+            </div>
+            
+            <div class="flex flex-col md:flex-row justify-center gap-4 mt-8">
+                <button id="downloadCombinedBtn" disabled
+                        class="download-btn text-white font-semibold p-4 rounded-lg transition-colors">
+                    Descargar Video Seleccionado
+                </button>
+                <button id="downloadAudioBtn" disabled
+                        class="download-btn text-white font-semibold p-4 rounded-lg transition-colors">
+                    Descargar Audio Solamente
+                </button>
+            </div>
+        </div>
+
+        <div id="messageBox" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl text-center max-w-sm w-full">
+                <p id="messageBoxText" class="text-white mb-4"></p>
+                <button id="messageBoxCloseBtn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const videoUrlInput = document.getElementById('videoUrl');
+        const getOptionsBtn = document.getElementById('getOptionsBtn');
+        const messageArea = document.getElementById('messageArea');
+        const messageText = document.getElementById('messageText');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const resultsArea = document.getElementById('resultsArea');
+        const videoTitle = document.getElementById('videoTitle');
+        const progressiveSection = document.getElementById('progressiveSection');
+        const progressiveOptionsDiv = document.getElementById('progressiveOptionsDiv');
+        const adaptiveVideoSection = document.getElementById('adaptiveVideoSection');
+        const adaptiveVideoOptionsDiv = document.getElementById('adaptiveVideoOptionsDiv');
+        const audioOnlySection = document.getElementById('audioOnlySection');
+        const audioOnlyOptionsDiv = document.getElementById('audioOnlyOptionsDiv');
+        const downloadCombinedBtn = document.getElementById('downloadCombinedBtn');
+        const downloadAudioBtn = document.getElementById('downloadAudioBtn');
+        const messageBox = document.getElementById('messageBox');
+        const messageBoxText = document.getElementById('messageBoxText');
+        const messageBoxCloseBtn = document.getElementById('messageBoxCloseBtn');
+
+        // State variables
+        let selectedVideoOption = null;
+        let selectedAudioOption = null;
+        let isProgressiveSelected = false;
+
+        // Show a message in the message area
+        function showMessage(text, color = 'text-green-400') {
+            messageText.textContent = text;
+            messageText.className = `font-medium ${color}`;
+            messageArea.style.opacity = '1';
+            setTimeout(() => {
+                messageArea.style.opacity = '0';
+            }, 5000);
+        }
+
+        // Show a modal message box
+        function showMessageBox(text) {
+            messageBoxText.textContent = text;
+            messageBox.classList.remove('hidden');
+        }
+
+        messageBoxCloseBtn.addEventListener('click', () => {
+            messageBox.classList.add('hidden');
+        });
+
+        // Normalize URL to a clean format
+        function normalizeUrl(url) {
+            try {
+                const urlObj = new URL(url);
+                return `https://www.youtube.com/watch?v=${new URLSearchParams(urlObj.search).get('v')}`;
+            } catch {
+                return url;
+            }
+        }
+
+        // Create a download button dynamically
+        function createDownloadButton(text, streamOption, parentDiv) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.className = 'bg-gray-750 text-white font-medium text-center p-3 rounded-xl hover:bg-gray-700 transition-colors cursor-pointer';
+
+            button.addEventListener('click', () => {
+                // Manejar la lógica de selección basada en el tipo de stream
+                if (streamOption.type === 'adaptive_video') {
+                    // Limpiar la selección de video previa
+                    Array.from(adaptiveVideoOptionsDiv.children).forEach(btn => btn.classList.remove('selected-video-btn'));
+                    Array.from(progressiveOptionsDiv.children).forEach(btn => btn.classList.remove('selected-video-btn'));
+                    
+                    selectedVideoOption = streamOption;
+                    isProgressiveSelected = false;
+                    button.classList.add('selected-video-btn');
+                } else if (streamOption.type === 'audio_only') {
+                    // Limpiar la selección de audio previa
+                    Array.from(audioOnlyOptionsDiv.children).forEach(btn => btn.classList.remove('selected-audio-btn'));
+                    
+                    selectedAudioOption = streamOption;
+                    isProgressiveSelected = false;
+                    button.classList.add('selected-audio-btn');
+                } else if (streamOption.type === 'progressive') {
+                    // Si es progresivo, limpiar TODAS las selecciones y seleccionar solo esta
+                    Array.from(adaptiveVideoOptionsDiv.children).forEach(btn => btn.classList.remove('selected-video-btn'));
+                    Array.from(progressiveOptionsDiv.children).forEach(btn => btn.classList.remove('selected-video-btn'));
+                    
+                    selectedVideoOption = streamOption;
+                    selectedAudioOption = streamOption;
+                    isProgressiveSelected = true;
+                    button.classList.add('selected-video-btn');
+                }
+
+                updateDownloadButtons();
+            });
+
+            return button;
+        }
+        
+        // Update the state of the download buttons (enabled/disabled)
+        function updateDownloadButtons() {
+            // Habilitar el botón de descarga combinada solo si se selecciona una opción progresiva,
+            // o si se seleccionan tanto un video adaptativo como un audio.
+            if (isProgressiveSelected) {
+                downloadCombinedBtn.disabled = false;
+            } else if (selectedVideoOption && selectedAudioOption) {
+                downloadCombinedBtn.disabled = false;
+            } else {
+                downloadCombinedBtn.disabled = true;
+            }
+            
+            // Habilitar el botón de descarga de solo audio solo si se selecciona una opción de audio
+            downloadAudioBtn.disabled = !selectedAudioOption;
+        }
+
+        // Handle download function
+        async function downloadFile(videoUrl, videoFormatId, audioFormatId, streamType, fileName) {
+            try {
+                showMessageBox('Preparando la descarga...');
+                console.log('PRIMERO: Iniciando la descarga...');
+
+                const requestBody = {
+                    url: videoUrl,
+                    stream_type: streamType,
+                    video_format_id: videoFormatId,
+                    audio_format_id: audioFormatId
+                };
+
+                // Log the request to the console for verification
+                console.log('SEGUNDO: Enviando solicitud al backend con el siguiente cuerpo:', requestBody);
+                console.log('TERCERO: Verificando que se descarga el video y el audio...');
+
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody),
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    showMessageBox('Descarga completada!');
+                    
+                    // Log success messages to the console
+                    if (streamType === 'adaptive_video') {
+                        console.log('CUARTO: El video y el audio han sido unidos exitosamente.');
+                    } else if (streamType === 'progressive') {
+                        console.log('Proceso de descarga de video progresivo (con audio) finalizado.');
+                    } else if (streamType === 'audio_only') {
+                         console.log('Proceso de descarga de audio finalizado.');
+                    }
+
+                } else {
+                    const data = await response.json();
+                    showMessageBox(`Error: ${data.error}`);
+                    console.error('Error en la descarga:', data.error);
+                }
+            } catch (error) {
+                console.error(error);
+                showMessageBox('Error de conexión. Asegúrate de que el backend está corriendo.');
+            }
+        }
+
+        // Main logic to fetch options
+        getOptionsBtn.addEventListener('click', async () => {
+            const url = videoUrlInput.value.trim();
+            if (!url) {
+                showMessageBox('Por favor, introduce un URL válido.');
+                return;
+            }
+
+            // Reset UI and state
+            resultsArea.classList.add('hidden');
+            progressiveSection.classList.add('hidden');
+            adaptiveVideoSection.classList.add('hidden');
+            audioOnlySection.classList.add('hidden');
+            progressiveOptionsDiv.innerHTML = '';
+            adaptiveVideoOptionsDiv.innerHTML = '';
+            audioOnlyOptionsDiv.innerHTML = '';
+            selectedVideoOption = null;
+            selectedAudioOption = null;
+            isProgressiveSelected = false;
+            updateDownloadButtons();
+            showMessage(''); // Clear previous message
+            
+            loadingIndicator.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/get-download-options', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: normalizeUrl(url) }),
+                });
+
+                loadingIndicator.classList.add('hidden');
+                const data = await response.json();
+
+                if (response.ok) {
+                    videoTitle.textContent = data.title;
+                    
+                    if (data.progressive_options.length > 0) {
+                        progressiveSection.classList.remove('hidden');
+                        data.progressive_options.forEach(option => {
+                            // Assign a type to the stream option for better logic separation
+                            option.type = 'progressive';
+                            const button = createDownloadButton(`Video Progresivo ${option.resolution}`, option, progressiveOptionsDiv);
+                            progressiveOptionsDiv.appendChild(button);
+                        });
+                    }
+
+                    if (data.adaptive_video_options.length > 0) {
+                        adaptiveVideoSection.classList.remove('hidden');
+                        data.adaptive_video_options.forEach(option => {
+                            option.type = 'adaptive_video';
+                            const button = createDownloadButton(`Video ${option.resolution}`, option, adaptiveVideoOptionsDiv);
+                            adaptiveVideoOptionsDiv.appendChild(button);
+                        });
+                    }
+
+                    if (data.audio_only_options.length > 0) {
+                        audioOnlySection.classList.remove('hidden');
+                        data.audio_only_options.forEach(option => {
+                            option.type = 'audio_only';
+                            const button = createDownloadButton(`Audio (${option.language}) ${option.audio_codec ? option.audio_codec.toUpperCase() : 'Desconocido'} - ${option.bitrate}k`, option, audioOnlyOptionsDiv);
+                            audioOnlyOptionsDiv.appendChild(button);
+                        });
+                    }
+                    
+                    if (data.progressive_options.length === 0 && data.adaptive_video_options.length === 0 && data.audio_only_options.length === 0) {
+                         showMessage('No se encontraron opciones de descarga para este video.', 'text-red-400');
+                    } else {
+                        resultsArea.classList.remove('hidden');
+                        showMessage('Selecciona las opciones para descargar.');
+                    }
+                } else {
+                    showMessage(`Error: ${data.error}`, 'text-red-400');
+                }
+
+            } catch (error) {
+                console.error(error);
+                loadingIndicator.classList.add('hidden');
+                showMessage(`Error de conexión. Asegúrate de que el backend está corriendo.`, 'text-red-400');
+            }
+        });
+
+        // Event listener for combined download button
+        downloadCombinedBtn.addEventListener('click', () => {
+            const url = videoUrlInput.value.trim();
+            if (isProgressiveSelected) {
+                 const fileName = `progressive-${selectedVideoOption.resolution}.mp4`;
+                 downloadFile(normalizeUrl(url), selectedVideoOption.format_id, selectedAudioOption.format_id, 'progressive', fileName);
+            } else if (selectedVideoOption && selectedAudioOption) {
+                 const fileName = `video-${selectedVideoOption.resolution}-audio-${selectedAudioOption.bitrate}.mp4`;
+                 downloadFile(normalizeUrl(url), selectedVideoOption.format_id, selectedAudioOption.format_id, 'adaptive_video', fileName);
+            } else {
+                 showMessageBox('Por favor, selecciona una calidad de video Y una pista de audio.');
+            }
+        });
+
+        // Event listener for audio-only download button
+        downloadAudioBtn.addEventListener('click', () => {
+            if (selectedAudioOption) {
+                const url = videoUrlInput.value.trim();
+                const fileName = `audio-${selectedAudioOption.bitrate}.m4a`;
+                downloadFile(normalizeUrl(url), null, selectedAudioOption.format_id, 'audio_only', fileName);
+            } else {
+                showMessageBox('Por favor, selecciona una pista de audio.');
+            }
+        });
+    </script>
+</body>
+</html>
