@@ -16,9 +16,9 @@ app = Flask(__name__)
 CORS(app)  # Habilitamos CORS para toda la aplicación
 
 # Configuración del backend
-DOWNLOAD_FOLDER = r"D:\\28 Download Youtube\\downloads"  # Carpeta temporal para guardar archivos
-# Usar una cadena literal (raw string) para la ruta de FFmpeg
-FFMPEG_PATH = r'D:\\28 Download Youtube\\ffmpeg\\bin\\ffmpeg.exe'
+# Rutas relativas al directorio actual del proyecto
+DOWNLOAD_FOLDER = "downloads"  # La carpeta 'downloads' se creará en el mismo directorio del proyecto
+FFMPEG_PATH = os.path.join("ffmpeg", "ffmpeg.exe")
 
 # Aseguramos que la carpeta de descargas exista
 if not os.path.exists(DOWNLOAD_FOLDER):
