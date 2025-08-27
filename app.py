@@ -3,10 +3,11 @@ import os
 import shutil
 import subprocess
 import time
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, after_this_request
 from flask_cors import CORS
 import yt_dlp
 import logging
+import threading
 
 # Inicializamos el logger para propósitos de depuración
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,6 +24,25 @@ FFMPEG_PATH = os.path.join("ffmpeg", "ffmpeg.exe")
 # Aseguramos que la carpeta de descargas exista
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
+    
+# Función para limpiar la carpeta en un hilo separado
+def clean_folder_async(folder_path, delay=5):
+    """
+    Intenta eliminar la carpeta de manera asíncrona después de un retraso.
+    """
+    def remove_folder():
+        time.sleep(delay)
+        if os.path.exists(folder_path):
+            logging.info(f"Intentando limpieza asíncrona de: {folder_path}")
+            try:
+                shutil.rmtree(folder_path)
+                logging.info(f"Carpeta '{os.path.basename(folder_path)}' eliminada con éxito.")
+            except Exception as e:
+                logging.error(f"Error al eliminar la carpeta '{os.path.basename(folder_path)}' de forma asíncrona: {e}")
+
+    # Inicia el hilo en segundo plano
+    thread = threading.Thread(target=remove_folder)
+    thread.start()
 
 # Endpoint para servir la página web
 @app.route('/')
@@ -143,9 +163,6 @@ def get_download_options():
 # Endpoint para manejar la descarga
 @app.route('/api/download', methods=['POST'])
 def download():
-    """
-    Este endpoint maneja la descarga real de los streams seleccionados.
-    """
     logging.info("Llamada a la API: /api/download")
     temp_folder = None
     try:
@@ -154,14 +171,13 @@ def download():
         stream_type = data.get('stream_type')
         video_format_id = data.get('video_format_id')
         audio_format_id = data.get('audio_format_id')
-        
+
         logging.info(f"Solicitud de descarga: URL={video_url}, Tipo={stream_type}, ID de Video={video_format_id}, ID de Audio={audio_format_id}")
 
         if not video_url or not stream_type:
             logging.error("Parámetros de descarga incompletos.")
             return jsonify({"error": "Parámetros de descarga incompletos."}), 400
 
-        # Verificamos que ffmpeg existe en la ruta especificada
         ffmpeg_exists = os.path.exists(FFMPEG_PATH)
         logging.info(f"Verificando FFmpeg en la ruta: {FFMPEG_PATH}. Existe: {ffmpeg_exists}")
         if not ffmpeg_exists:
@@ -171,8 +187,7 @@ def download():
         temp_folder = os.path.join(DOWNLOAD_FOLDER, str(int(time.time() * 1000)))
         os.makedirs(temp_folder, exist_ok=True)
         logging.info(f"Carpeta temporal creada: {temp_folder}")
-        
-        # Opciones base para yt-dlp
+
         ydl_opts = {
             'quiet': True,
             'outtmpl': os.path.join(temp_folder, '%(title)s.%(ext)s'),
@@ -184,8 +199,6 @@ def download():
 
         if stream_type == 'adaptive_video' and video_format_id and audio_format_id:
             logging.info("Manejando la descarga de video adaptativo (combinación de video + audio)")
-            
-            # Descargar stream de video
             video_ydl_opts = ydl_opts.copy()
             video_ydl_opts['format'] = video_format_id
             video_ydl_opts['outtmpl'] = os.path.join(temp_folder, 'video.%(ext)s')
@@ -193,10 +206,6 @@ def download():
                 info_dict = ydl.extract_info(video_url, download=True)
                 video_file = ydl.prepare_filename(info_dict)
             
-            # SEGUNDO: Verificar y mostrar por consola que se descarga video
-            print(f"✅ Video descargado con éxito en: {video_file}")
-            
-            # Descargar stream de audio
             audio_ydl_opts = ydl_opts.copy()
             audio_ydl_opts['format'] = audio_format_id
             audio_ydl_opts['outtmpl'] = os.path.join(temp_folder, 'audio.%(ext)s')
@@ -204,10 +213,6 @@ def download():
                 info_dict = ydl.extract_info(video_url, download=True)
                 audio_file = ydl.prepare_filename(info_dict)
             
-            # TERCERO: Verificar y mostrar por consola que se descarga audio
-            print(f"✅ Audio descargado con éxito en: {audio_file}")
-            
-            # Combinar con ffmpeg
             combined_file = os.path.join(temp_folder, f'{info_dict.get("title", "video").replace("/", "_")}.mp4')
             logging.info(f"Iniciando la combinación con FFmpeg. Video: {video_file}, Audio: {audio_file}, Salida: {combined_file}")
             
@@ -215,16 +220,12 @@ def download():
             logging.info(f"Comando FFmpeg: {' '.join(command)}")
             subprocess.run(command, check=True)
             
-            # CUARTO: Verificar y mostrar que el video y audio fueron unidos con éxito
-            print("✅ Video y audio unidos exitosamente.")
-            
             download_path = combined_file
             final_filename = os.path.basename(download_path)
             logging.info(f"Archivos combinados. Archivo final: {download_path}")
 
         elif stream_type == 'audio_only' and audio_format_id:
             logging.info("Manejando la descarga de solo audio")
-            # Descargar solo el stream de audio
             ydl_opts['format'] = audio_format_id
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
@@ -238,44 +239,13 @@ def download():
             logging.info(f"Archivo de solo audio descargado: {download_path}")
             
         elif stream_type == 'progressive' and video_format_id:
-            logging.info("Manejando la descarga de video progresivo")
-
-            # Paso 1: Descargar el video sin audio
-            video_ydl_opts = ydl_opts.copy()
-            video_ydl_opts['format'] = f'{video_format_id}+bestaudio/best'
-            video_ydl_opts['outtmpl'] = os.path.join(temp_folder, 'video.mp4')
-            video_ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegVideoRemuxer',
-                'preferedformat': 'mp4'
-            }]
-
-            with yt_dlp.YoutubeDL(video_ydl_opts) as ydl:
+            logging.info("Manejando la descarga de video por ID de formato")
+            ydl_opts['format'] = f'{video_format_id}+bestaudio'
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info_dict = ydl.extract_info(video_url, download=True)
-                video_file = os.path.join(temp_folder, f'{info_dict.get("title", "video").replace("/", "_")}.mp4')
-            
-            # SEGUNDO: Verificar y mostrar por consola que se descarga video
-            print(f"✅ Video descargado con éxito en: {video_file}")
-            
-            # TERCERO: Extraer el audio del archivo progresivo
-            audio_file = os.path.join(temp_folder, 'audio.mp4')
-            audio_extract_command = [FFMPEG_PATH, '-i', video_file, '-vn', '-acodec', 'copy', audio_file, '-y']
-            subprocess.run(audio_extract_command, check=True)
-            
-            # TERCERO: Verificar y mostrar por consola que se descarga audio
-            print(f"✅ Audio extraído con éxito en: {audio_file}")
-
-            # CUARTO: Unir el video sin audio con el audio extraído
-            combined_file = os.path.join(temp_folder, f'{info_dict.get("title", "video").replace("/", "_")}_combined.mp4')
-            combine_command = [FFMPEG_PATH, '-i', video_file, '-i', audio_file, '-c', 'copy', combined_file, '-y']
-            subprocess.run(combine_command, check=True)
-            
-            # CUARTO: Verificar y mostrar que el video y audio fueron unidos con éxito
-            print("✅ Video y audio unidos exitosamente.")
-            
-            download_path = combined_file
-            final_filename = os.path.basename(download_path)
-            logging.info(f"Archivos combinados. Archivo final: {download_path}")
-
+                download_path = ydl.prepare_filename(info_dict)
+                final_filename = os.path.basename(download_path)
+            logging.info(f"Archivo descargado. Archivo final: {download_path}")
         else:
             logging.error("Parámetros de descarga no válidos.")
             return jsonify({"error": "Parámetros de descarga no válidos."}), 400
@@ -284,24 +254,25 @@ def download():
             logging.error("La ruta de descarga o el nombre de archivo están vacíos. Algo salió mal.")
             return jsonify({"error": "No se pudo preparar la descarga."}), 500
 
-        # Servir el archivo al cliente
+        # Manda la limpieza a un hilo separado después de devolver la respuesta
+        # Nota: Puedes ajustar el 'delay' si sigues teniendo problemas
+        clean_folder_async(temp_folder, delay=5)
+
+        # Sirve el archivo al cliente
         logging.info(f"Sirviendo el archivo: {download_path}")
         return send_file(download_path, as_attachment=True, download_name=final_filename)
 
     except subprocess.CalledProcessError as e:
+        if temp_folder and os.path.exists(temp_folder):
+            shutil.rmtree(temp_folder, ignore_errors=True)
         logging.error(f"Error de subproceso de FFmpeg: {e}")
         return jsonify({"error": f"Error al combinar el video con ffmpeg: {e}"}), 500
     except Exception as e:
+        if temp_folder and os.path.exists(temp_folder):
+            shutil.rmtree(temp_folder, ignore_errors=True)
         logging.critical(f"Error inesperado en el proceso de descarga: {e}")
         return jsonify({"error": f"Ocurrió un error inesperado al descargar el archivo: {e}"}), 500
-    finally:
-        # Limpiar la carpeta de descargas después de servir el archivo
-        if temp_folder and os.path.exists(temp_folder):
-            logging.info(f"Limpiando carpeta temporal: {temp_folder}")
-            shutil.rmtree(temp_folder, ignore_errors=True)
-            
-        logging.info("Proceso de descarga finalizado.")
-        
+    
 # Iniciar el servidor
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
