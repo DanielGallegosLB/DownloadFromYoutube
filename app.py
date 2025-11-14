@@ -19,7 +19,7 @@ CORS(app)  # Habilitamos CORS para toda la aplicación
 # Configuración del backend
 # Rutas relativas al directorio actual del proyecto
 DOWNLOAD_FOLDER = "downloads"  # La carpeta 'downloads' se creará en el mismo directorio del proyecto
-FFMPEG_PATH = os.path.join("ffmpeg", "ffmpeg.exe")
+
 
 # Aseguramos que la carpeta de descargas exista
 if not os.path.exists(DOWNLOAD_FOLDER):
@@ -81,7 +81,6 @@ def get_download_options():
             'quiet': True,
             'skip_download': True,
             'force_generic_extractor': True,
-            'ffmpeg_location': os.path.dirname(FFMPEG_PATH)
         }
         logging.info(f"Opciones de yt-dlp para la extracción de información: {ydl_opts}")
         
@@ -216,7 +215,7 @@ def download():
             combined_file = os.path.join(temp_folder, f'{info_dict.get("title", "video").replace("/", "_")}.mp4')
             logging.info(f"Iniciando la combinación con FFmpeg. Video: {video_file}, Audio: {audio_file}, Salida: {combined_file}")
             
-            command = [FFMPEG_PATH, '-i', video_file, '-i', audio_file, '-c', 'copy', combined_file, '-y']
+            command = ['ffmpeg', '-i', video_file, '-i', audio_file, '-c', 'copy', combined_file, '-y']
             logging.info(f"Comando FFmpeg: {' '.join(command)}")
             subprocess.run(command, check=True)
             
