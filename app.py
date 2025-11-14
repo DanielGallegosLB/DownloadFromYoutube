@@ -18,7 +18,7 @@ CORS(app)  # Habilitamos CORS para toda la aplicación
 
 # Configuración del backend
 # Rutas relativas al directorio actual del proyecto
-DOWNLOAD_FOLDER = "downloads"  # La carpeta 'downloads' se creará en el mismo directorio del proyecto
+# DOWNLOAD_FOLDER = "downloads"  # La carpeta 'downloads' se creará en el mismo directorio del proyecto
 
 
 # Aseguramos que la carpeta de descargas exista
