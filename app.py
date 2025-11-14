@@ -18,7 +18,7 @@ CORS(app)  # Habilitamos CORS para toda la aplicación
 
 # Configuración del backend
 # Rutas relativas al directorio actual del proyecto
-# DOWNLOAD_FOLDER = "downloads"  # La carpeta 'downloads' se creará en el mismo directorio del proyecto
+DOWNLOAD_FOLDER = "downloads"  # La carpeta 'downloads' se creará en el mismo directorio del proyecto
 
 
 # Aseguramos que la carpeta de descargas exista
@@ -70,11 +70,11 @@ def get_download_options():
             return jsonify({"error": "No se proporcionó un URL."}), 400
 
         # Verificamos que ffmpeg existe en la ruta especificada
-        ffmpeg_exists = os.path.exists(FFMPEG_PATH)
-        logging.info(f"Verificando FFmpeg en la ruta: {FFMPEG_PATH}. Existe: {ffmpeg_exists}")
-        if not ffmpeg_exists:
-            logging.error(f"ffmpeg.exe no se encuentra en la ruta especificada: {FFMPEG_PATH}")
-            return jsonify({"error": f"Error: No se encontró ffmpeg.exe en la ruta especificada: {FFMPEG_PATH}"}), 500
+        #ffmpeg_exists = os.path.exists(FFMPEG_PATH)
+        #logging.info(f"Verificando FFmpeg en la ruta: {FFMPEG_PATH}. Existe: {ffmpeg_exists}")
+        #if not ffmpeg_exists:
+        #    logging.error(f"ffmpeg.exe no se encuentra en la ruta especificada: {FFMPEG_PATH}")
+        #    return jsonify({"error": f"Error: No se encontró ffmpeg.exe en la ruta especificada: {FFMPEG_PATH}"}), 500
 
         # Configuramos yt-dlp para obtener información sin descargar.
         ydl_opts = {
@@ -177,11 +177,11 @@ def download():
             logging.error("Parámetros de descarga incompletos.")
             return jsonify({"error": "Parámetros de descarga incompletos."}), 400
 
-        ffmpeg_exists = os.path.exists(FFMPEG_PATH)
-        logging.info(f"Verificando FFmpeg en la ruta: {FFMPEG_PATH}. Existe: {ffmpeg_exists}")
-        if not ffmpeg_exists:
-            logging.error(f"ffmpeg.exe no se encuentra en la ruta especificada: {FFMPEG_PATH}")
-            return jsonify({"error": f"Error: No se encontró ffmpeg.exe en la ruta especificada: {FFMPEG_PATH}"}), 500
+        #ffmpeg_exists = os.path.exists(FFMPEG_PATH)
+        #logging.info(f"Verificando FFmpeg en la ruta: {FFMPEG_PATH}. Existe: {ffmpeg_exists}")
+        #if not ffmpeg_exists:
+        #    logging.error(f"ffmpeg.exe no se encuentra en la ruta especificada: {FFMPEG_PATH}")
+        #    return jsonify({"error": f"Error: No se encontró ffmpeg.exe en la ruta especificada: {FFMPEG_PATH}"}), 500
 
         temp_folder = os.path.join(DOWNLOAD_FOLDER, str(int(time.time() * 1000)))
         os.makedirs(temp_folder, exist_ok=True)
@@ -190,7 +190,7 @@ def download():
         ydl_opts = {
             'quiet': True,
             'outtmpl': os.path.join(temp_folder, '%(title)s.%(ext)s'),
-            'ffmpeg_location': os.path.dirname(FFMPEG_PATH)
+            #'ffmpeg_location': os.path.dirname(FFMPEG_PATH)
         }
 
         download_path = None
